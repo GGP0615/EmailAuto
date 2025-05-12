@@ -33,6 +33,7 @@ def init_db():
                 company TEXT,
                 job_title TEXT,
                 job_description TEXT,
+                job_url TEXT,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -48,20 +49,20 @@ def init_db():
         ''')
         conn.commit()
 
-def add_recipient(name, email, company, job_title, job_description):
+def add_recipient(name, email, company, job_title, job_description, job_url=None):
     with db_conn() as conn:
         c = conn.cursor()
         c.execute('''
-            INSERT OR IGNORE INTO recipients (name, email, company, job_title, job_description)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (name, email, company, job_title, job_description))
+            INSERT OR IGNORE INTO recipients (name, email, company, job_title, job_description, job_url)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (name, email, company, job_title, job_description, job_url))
         conn.commit()
 
 def get_pending_recipients():
     with db_conn() as conn:
         c = conn.cursor()
         c.execute('''
-            SELECT r.id, r.name, r.email, r.company, r.job_title, r.job_description
+            SELECT r.id, r.name, r.email, r.company, r.job_title, r.job_description, r.job_url
             FROM recipients r
             LEFT JOIN email_logs l ON r.id = l.recipient_id
             WHERE l.sent_at IS NULL
@@ -81,7 +82,7 @@ def get_followup_candidates(days=5):
     with db_conn() as conn:
         c = conn.cursor()
         c.execute(f'''
-            SELECT r.id, r.name, r.email, r.company, r.job_title, r.job_description, l.sent_at
+            SELECT r.id, r.name, r.email, r.company, r.job_title, r.job_description, r.job_url, l.sent_at
             FROM recipients r
             JOIN email_logs l ON r.id = l.recipient_id
             WHERE l.followup_sent = 0

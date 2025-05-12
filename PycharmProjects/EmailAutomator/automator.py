@@ -13,16 +13,30 @@ from openai_usage import print_openai_usage  # see below
 from utils import import_yaml_to_db
 
 def build_email_html(ai_body, recipient_info):
+    job_url_section = ""
+    if recipient_info.get('job_url'):
+        job_url_section = f"""
+<div style="margin: 20px 0; padding: 15px; background-color: #f5f5f5; border-left: 4px solid #2B579A; border-radius: 4px;">
+    <p style="margin: 0; font-weight: bold;">Job Posting Link:</p>
+    <p style="margin: 5px 0 0 0;">
+        <a href="{recipient_info['job_url']}" style="color: #2B579A; text-decoration: none;">
+            {recipient_info['job_title']} at {recipient_info['company']}
+        </a>
+    </p>
+</div>
+"""
+
     signature = f"""
 <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
     <p style="margin: 0; color: #333;">
         Best regards,<br>
         <strong style="color: #2B579A; font-size: 16px;">Gnanendra Prasad Gopi</strong><br>
-        <span style="color: #666;">Product Manager</span>
+        <span style="color: #666;">Product Manager</span> |
+        <span style="color: #666;">Changing The Present</span>
     </p>
     <div style="margin-top: 15px;">
-        <a href="https://www.linkedin.com/in/gnanendraprasadgopi/" style="color: #2B579A; text-decoration: none; margin-right: 15px;">LinkedIn</a> |
-        <a href="https://github.com/gnanendra-gopi" style="color: #2B579A; text-decoration: none; margin-right: 15px;">GitHub</a> |
+        <a href="https://www.linkedin.com/in/gnanendra-prasad-gopi" style="color: #2B579A; text-decoration: none; margin-right: 15px;">LinkedIn</a> |
+        <a href="https://github.com/GGP0615/Class-Team-Up" style="color: #2B579A; text-decoration: none; margin-right: 15px;">GitHub</a> |
         <a href="mailto:gnanendraprasadgopi0615@gmail.com" style="color: #2B579A; text-decoration: none;">gnanendraprasadgopi0615@gmail.com</a>
     </div>
 </div>
@@ -74,6 +88,7 @@ def build_email_html(ai_body, recipient_info):
   </head>
   <body>
     {ai_body}
+    {job_url_section}
     {signature}
   </body>
 </html>
@@ -82,6 +97,8 @@ def build_email_html(ai_body, recipient_info):
 
 def main():
     if MODE == "reminder":
+        print("[INFO] Initializing database if needed...")
+        init_db()  # Just initialize the DB if it doesn't exist, don't reset
         print("[INFO] Checking for recipients due for follow-up...")
         candidates = get_followup_candidates(days=5)
         if not candidates:
@@ -89,19 +106,20 @@ def main():
             return
         print("Reminder: The following recipients are due for follow-up:")
         for row in candidates:
-            recipient_id, name, email, company, job_title, job_description, sent_at = row
+            recipient_id, name, email, company, job_title, job_description, job_url, sent_at = row
             print(f"- {name} ({email}) — {company}, {job_title} — Sent at: {sent_at}")
         confirm = input("\nDo you want to send follow-ups to these recipients now? (y/n): ").strip().lower()
         if confirm == 'y':
             openai_client = OpenAIClient()
             for row in candidates:
-                recipient_id, name, email, company, job_title, job_description, sent_at = row
+                recipient_id, name, email, company, job_title, job_description, job_url, sent_at = row
                 recipient_info = {
                     "name": name,
                     "email": email,
                     "company": company,
                     "job_title": job_title,
-                    "job_description": job_description
+                    "job_description": job_description,
+                    "job_url": job_url
                 }
                 print(f"[INFO] Generating follow-up for: {name} ({email})")
                 ai_body = openai_client.generate_ai_message(job_description, recipient_info)
@@ -126,8 +144,8 @@ def main():
         return
 
     if MODE == "test":
-        print("[INFO] Resetting database...")
-        reset_db()
+        print("[INFO] Initializing database if needed...")
+        init_db()  # Just initialize the DB if it doesn't exist, don't reset
         print("[INFO] Importing recipients from YAML...")
         from database import add_recipient
         import_yaml_to_db('jobs_and_recipients.yaml', add_recipient)
@@ -138,17 +156,18 @@ def main():
         print("[INFO] Getting pending recipients...")
         pending = get_pending_recipients()
         print(f"[INFO] Found {len(pending)} pending recipients")
-        
+
         for row in pending:
-            recipient_id, name, email, company, job_title, job_description = row
+            recipient_id, name, email, company, job_title, job_description, job_url = row
             print(f"[INFO] Processing recipient: {name} ({email})")
-            
+
             recipient_info = {
                 "name": name,
                 "email": email,
                 "company": company,
                 "job_title": job_title,
-                "job_description": job_description
+                "job_description": job_description,
+                "job_url": job_url
             }
             print("[INFO] Generating AI message...")
             ai_body = openai_client.generate_ai_message(job_description, recipient_info)
@@ -162,26 +181,29 @@ def main():
         return
 
     if MODE == "send":
+        print("[INFO] Initializing database if needed...")
+        init_db()  # Just initialize the DB if it doesn't exist, don't reset
         print("[INFO] Importing recipients from YAML...")
         from database import add_recipient
         import_yaml_to_db('jobs_and_recipients.yaml', add_recipient)
         print("[INFO] Initializing OpenAI client...")
         openai_client = OpenAIClient()
         print(f"[INFO] Running in {MODE.upper()} mode.")
-        print("[INFO] Getting pending recipients...")
+        print("[INFO] Getting NEW recipients who haven't been emailed yet...")
         pending = get_pending_recipients()
-        print(f"[INFO] Found {len(pending)} pending recipients")
-        
+        print(f"[INFO] Found {len(pending)} NEW recipients who haven't been emailed")
+
         for row in pending:
-            recipient_id, name, email, company, job_title, job_description = row
+            recipient_id, name, email, company, job_title, job_description, job_url = row
             print(f"[INFO] Processing recipient: {name} ({email})")
-            
+
             recipient_info = {
                 "name": name,
                 "email": email,
                 "company": company,
                 "job_title": job_title,
-                "job_description": job_description
+                "job_description": job_description,
+                "job_url": job_url
             }
             print("[INFO] Generating AI message...")
             ai_body = openai_client.generate_ai_message(job_description, recipient_info)
@@ -196,21 +218,24 @@ def main():
         return
 
     if MODE == "followup":
+        print("[INFO] Initializing database if needed...")
+        init_db()  # Just initialize the DB if it doesn't exist, don't reset
         print("[INFO] Getting followup candidates...")
         candidates = get_followup_candidates(days=5)
         print(f"[INFO] Found {len(candidates)} followup candidates")
-        
+
         openai_client = OpenAIClient()
         for row in candidates:
-            recipient_id, name, email, company, job_title, job_description, sent_at = row
+            recipient_id, name, email, company, job_title, job_description, job_url, sent_at = row
             print(f"[INFO] Processing followup for: {name} ({email})")
-            
+
             recipient_info = {
                 "name": name,
                 "email": email,
                 "company": company,
                 "job_title": job_title,
-                "job_description": job_description
+                "job_description": job_description,
+                "job_url": job_url
             }
             print("[INFO] Generating AI message...")
             ai_body = openai_client.generate_ai_message(job_description, recipient_info)

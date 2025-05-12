@@ -1,6 +1,6 @@
 import os
 
-MODE = os.getenv("EMAIL_MODE", "send")  # "test", "send", "reminder", "reset", or "followup"
+MODE = os.getenv("EMAIL_MODE", "test")  # "test", "send", "reminder", "reset", or "followup"
 SENDER_EMAIL = "gnanendraprasadgopi0615@gmail.com"
 SENDER_NAME = "Gnanendra Prasad Gopi"
 SENDER_PASSWORD = os.getenv("07_GMAIL_PASSWORD")
